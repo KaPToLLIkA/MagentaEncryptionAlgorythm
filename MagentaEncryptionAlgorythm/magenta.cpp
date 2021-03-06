@@ -306,6 +306,46 @@ namespace crypto {
         return this->raw_key;
     }
 
+    std::string magenta::save_key_as_file(std::string fname)
+    {
+        std::ofstream fout(fname + ".mkey", 
+            std::ios_base::binary | std::ios_base::trunc);
+
+        fout.write(reinterpret_cast<char*>(this->raw_key.data()), this->raw_key.size());
+
+        fout.close();
+
+        return fname + ".mkey";
+    }
+
+    void magenta::load_key_from_file(std::string fname)
+    {
+        std::ifstream fin(fname, std::ios_base::binary);
+        if (!fin.is_open())
+        {
+            throw std::runtime_error("Unable to open the \"" + fname + "\" file.");
+        }
+
+        fin.seekg(0, std::ios::end);
+        size_t len = fin.tellg();
+        fin.seekg(0, std::ios::beg);
+
+        if (len > 1024) 
+        {
+            throw std::runtime_error("Unable to read key from \""
+                + fname + "\" file."
+            + " File is too large...");
+        }
+
+        std::vector<byte> key_buffer(len);
+
+        fin.read(reinterpret_cast<char*>(key_buffer.data()), len);
+
+        set_key(key_buffer);
+
+        fin.close();
+    }
+
     void magenta::set_file_buf_sz(size_t sz)
     {
         size_t whole_blocks = sz / MAGENTA_BLOCK_SZ;

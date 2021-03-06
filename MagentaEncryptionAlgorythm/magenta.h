@@ -54,6 +54,9 @@ namespace crypto {
 		void set_key(std::vector<byte>& key);
 		std::vector<byte> get_key();
 
+		std::string save_key_as_file(std::string fname);
+		void load_key_from_file(std::string fname);
+
 		void set_file_buf_sz(size_t sz);
 		size_t get_file_buf_sz();
 

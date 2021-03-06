@@ -1,16 +1,17 @@
 #include <iostream>
 #include <fstream>
+#include <string>
 
 #include "magenta.h"
 
-#define ENABLE_TEST
+//#define ENABLE_TEST
 
 #ifdef ENABLE_TEST
 void create_random_filled_file(std::string fname, size_t size);
 bool files_are_equal(std::string fname1, std::string fname2);
 #endif // ENABLE_TEST
 
-int main() {
+int main(int argc, char* argv[]) {
 	using namespace crypto;
 
 #ifdef ENABLE_TEST
@@ -47,10 +48,83 @@ int main() {
 	if (files_are_equal(fpdf, fpdf_resource)) std::cout << "TESTPDF: OK." << std::endl;
 	else std::cout << "TESTPDF: FAILED." << std::endl;
 #endif // ENABLE_TEST
+	std::string way_to_program(argv[0]);
+	size_t pos = way_to_program.find_last_of('\\');
 
+	std::string program_name(
+		way_to_program.begin() + (pos == std::string::npos ? 0 : pos + 1),
+		way_to_program.end()
+	);
+
+	std::string usage = "How to use: " + program_name
+		+ " encode|decode target_file_name key_file_name\n" 
+		+ "Show this text: " + program_name + " --help";
+
+	if (argc != 4 
+		|| (argc == 2 && !strcmp(argv[1], "--help")))
+	{
+		std::cout << usage << std::endl;
+		return -1;
+	}
+
+	if (!strcmp(argv[1], "encode"))
+	{
+		std::cout << "starting encryption..." << std::endl;
+
+		magenta cypher;
+		
+		try 
+		{
+			auto fkeyname = cypher.save_key_as_file(argv[3]);
+			auto fname = cypher.encrypt_file(argv[2]);
+
+			std::cout << "Finish. File saved as: "
+				<< fname << std::endl;
+			std::cout << "Key saved as: "
+				<< fkeyname << std::endl;
+			return 0;
+		}
+		catch (std::runtime_error & e) 
+		{
+			std::cout << e.what() << std::endl;
+		}
+		catch (...)
+		{
+			std::cout << "Error. Something went wrong..." << std::endl;
+		}
+
+	}
+
+	if (!strcmp(argv[1], "decode"))
+	{
+		std::cout << "starting decryption..." << std::endl;
+
+		magenta cypher;
+
+		try
+		{
+			cypher.load_key_from_file(argv[3]);
+			auto fname = cypher.encrypt_file(argv[2]);
+
+			std::cout << "Finish. File saved as: "
+				<< fname << std::endl;
+			return 0;
+		}
+		catch (std::runtime_error & e)
+		{
+			std::cout << e.what() << std::endl;
+		}
+		catch (...)
+		{
+			std::cout << "Error. Something went wrong..." << std::endl;
+		}
+
+	}
+
+	std::cout << "Wrong command name!" << std::endl;
+	std::cout << usage << std::endl;
 	
-	
-	return 0;
+	return -1;
 }
 
 #ifdef ENABLE_TEST

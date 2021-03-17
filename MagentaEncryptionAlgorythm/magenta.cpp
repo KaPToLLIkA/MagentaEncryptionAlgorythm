@@ -2,6 +2,7 @@
 
 namespace crypto {
 
+    // определение S блока для подстановок в алгоритме
     uint8_t magenta::S_box[256] = {
          1  ,  2  ,  4  ,  8  ,  16 ,  32 ,  64 ,  128,
          101,  202,  241,  135,  107,  214,  201,  247,
@@ -127,21 +128,28 @@ namespace crypto {
     {
         std::vector<block64_t> blocks;
 
+        // определяем количество целых блоков
         size_t whole_blocks = data.size() / MAGENTA_BLOCK_SZ;
 
+        // определяем, надо ли нам дополнять байтами до размера, кратного 128 бит
         if (append_service_block)
         {
+            // определяем количество имеющихся байт
             size_t last_bytes = data.size() - whole_blocks * MAGENTA_BLOCK_SZ;
             std::random_device rd;
             std::mt19937_64 generator(rd());
+            // дополняем недостающие байты случайными числами
             for (size_t i = 0; i < MAGENTA_BLOCK_SZ - last_bytes - 1; ++i) {
                 data.push_back(generator() % 256);
             }
+            // записываем в последний байт количество добавленных байт
             data.push_back(static_cast<byte>(MAGENTA_BLOCK_SZ - last_bytes - 1));
+            // пересчитываем количество целых блоков
             whole_blocks = data.size() / MAGENTA_BLOCK_SZ;
         }
 
 
+        // разбиваем данные на блоки по 128 бит
         block64_t block;
         for (size_t i = 0, pos = 0; i < whole_blocks; ++i)
         {
@@ -166,6 +174,8 @@ namespace crypto {
 
     block64_t magenta::crypt(block64_t data, std::vector<uint64_t>& keys)
     {
+        // выбирает в зависимости от количества раундовых ключей ту или иную реализацию шифрования
+        // и возвращает зашифрованный блок
         if (keys.size() == 2) {
 
             return 
@@ -242,12 +252,14 @@ namespace crypto {
 
     std::vector<byte> magenta::generate_random_key()
     {   
+        // создаётся ключ размера 256 бит
         std::vector<byte> key(sizeof(uint64_t) * 4);
 
         std::random_device rd;
         std::mt19937_64 generator(rd());
         std::uniform_int_distribution<uint32_t> distribution;
 
+        // заполняется случайными значениями
         std::generate(key.begin(), key.end(),
             [&distribution, &generator]() { return distribution(generator); });
 
@@ -261,6 +273,7 @@ namespace crypto {
 
     magenta::magenta(std::vector<byte>& key)
     {
+        // если не удалось установить ключ, устанавливается случайно сгенерированный
         try 
         {
             set_key(key);
@@ -276,6 +289,8 @@ namespace crypto {
     {
         size_t key_sz = key.size() / 8;
 
+        // проверяем, удовлетворяет ли условиям размер ключа
+        // допустимые размеры 128, 192 или 256 бит
         if (key.size() % 8 != 0 || key_sz < 2 || key_sz > 4) 
         {
             throw std::runtime_error("Invalid Magenta key size " 
@@ -285,6 +300,7 @@ namespace crypto {
 
         this->raw_key = key;
 
+        // разбиваем исходный ключ на раундовые ключи
         this->prepared_key.resize(key_sz);
         for (size_t i = 0, pos = 0; i < key_sz; ++i) 
         {
@@ -359,13 +375,17 @@ namespace crypto {
 
     std::vector<byte> magenta::encrypt(std::vector<byte>* data)
     {
+        // генерируем вектор инициализации
         auto iv = generate_random_iv();
 
+        // разбиваем данные на блоки
         auto blocks = split_data(*data);
 
         std::vector<byte> result;
         result = result + iv;
 
+        // шифруем каждый блок
+        // перед шифрованием выполняется XOR с вектором инициализации
         for (const auto& block : blocks) {
             iv = crypt(iv ^ block, this->prepared_key);
             result = result + iv;
@@ -381,20 +401,29 @@ namespace crypto {
 
     std::vector<byte> magenta::decrypt(std::vector<byte>* data)
     {
+        // разбиваем данные на блоки
         auto blocks = split_data(*data, false);
 
+        // делаем вектор инициализации равным первому блоку данных
         auto iv = blocks[0];
 
         std::vector<byte> result;
 
+        // дешифруем блоки
         for (size_t i = 1; i < blocks.size(); ++i)
         {
+            // дешифрование, меняем местами половины блока
+            // замена половин блоков местами - это операция V в формуле функции дешифрования
             auto raw_decoded = crypt(block64_t({ blocks[i][1] , blocks[i][0] }), this->prepared_key);
+            // ещё раз меняем местами половины блока (выполняется операция V) и выполняем XOR с вектором инициализации
             auto decoded = iv ^ block64_t({ raw_decoded[1], raw_decoded[0] });
+            // добавляем расшифрованный блок к результату
             result = result + decoded;
+            // присваиваем вектору инициализации последний блок, который расшифровывали
             iv = blocks[i];
         }
 
+        // удаляем байты, который были добавлены в конце
         auto first = result.end() - 1 - static_cast<int32_t>(*(--result.end()));
         auto last = result.end();
 
@@ -410,20 +439,27 @@ namespace crypto {
 
     std::string magenta::encrypt_file(std::string* fname)
     {
+        // открываем входной файл
         std::ifstream fin(*fname, std::ios_base::binary);
+        // проверяем, открылся ли он
         if (!fin.is_open())
         {
             throw std::runtime_error("Unable to open the \"" + *fname + "\" file.");
         }
+        // открываем выходной файл
         std::ofstream fout((*fname) + ".encrypted", std::ios_base::binary | std::ios_base::trunc);
 
+        // определяем размер файла
         std::streampos cur = fin.tellg(), last = fin.tellg();
         size_t len = cur - last;
         fin.seekg(0, std::ios::end);
         size_t f_len = fin.tellg();
         fin.seekg(0, std::ios::beg);
+        // да, все строчки нужный для определения размера файла
 
+        // генерируем вектор инициализации
         auto iv = generate_random_iv();
+        // записываем вектор в файл
         fout.write(reinterpret_cast<char*>(iv.data()), MAGENTA_BLOCK_SZ);
 
         bool file_ended = false;
@@ -431,21 +467,27 @@ namespace crypto {
 
         do
         {
+            // читаем данные из файла в буфер фиксированного размера
             std::vector<byte> data(this->file_buf_sz);
             fin.read(reinterpret_cast<char*>(data.data()), data.size());
 
+            // проверяем, закончился ли файл
             fin.read(&t, 1);
             file_ended = fin.eof();
             fin.seekg(-1, std::ios::cur);
 
+            // проверяем, сколько было прочитано символов
             cur = fin.tellg();
             len = cur != -1 ? cur - last : f_len - last;
             last = cur;
 
             data.resize(len);
 
+            // разбиваем считанные данные на блоки
+            // если это последняя порция данных, то дополняем их до размера, кратного 128 битам
             auto blocks = split_data(data, file_ended);
 
+            // шифруем блоки
             std::vector<byte> result;
             for (const auto& block : blocks)
             {
@@ -453,8 +495,9 @@ namespace crypto {
                 result = result + iv;
             }
 
+            // записываем зашифрованные данные в файл
             fout.write(reinterpret_cast<char*>(result.data()), result.size());
-
+            // если файл закончился, выходим из цикла
         } while (!file_ended);
 
         fout.close();
@@ -469,6 +512,7 @@ namespace crypto {
 
     std::string magenta::decrypt_file(std::string* fname)
     {
+        // операция дешифрования происходит зеркально операции шифрования
         std::ifstream fin(*fname, std::ios_base::binary);
         if (!fin.is_open())
         {
@@ -508,6 +552,9 @@ namespace crypto {
 
             auto blocks = split_data(data, false);
 
+            // отличия только в цикле дешифрования блоков
+            // это связано с тем, что алгоритм не является симметричным
+            // подробное описание этого цикла есть в методе decrypt
             std::vector<byte> result;
             for (const auto& block : blocks)
             {

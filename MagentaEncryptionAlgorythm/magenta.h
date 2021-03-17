@@ -12,7 +12,10 @@ namespace crypto {
 	typedef uint8_t byte;
 	typedef std::array<uint64_t, 2> block64_t;
 
+	// перегруженные операторы
+	// оператор исключающего или
 	block64_t operator^(const block64_t& a, const block64_t& b);
+	// оператор добавления блока в результирующий массив байт
 	std::vector<byte>& operator+(std::vector<byte>& a, const block64_t& b);
 
 	class magenta
@@ -20,6 +23,7 @@ namespace crypto {
 		static uint8_t S_box[256];
 		
 		// round function
+		// функции, которые используюттся в раундовой функции
 		static uint8_t f(uint8_t byte);
 		static uint8_t A(uint8_t x, uint8_t y);
 		static uint16_t PE(uint8_t x, uint8_t y);
@@ -28,8 +32,10 @@ namespace crypto {
 		static block64_t S(block64_t X);
 		static block64_t C(uint32_t k, block64_t X);
 		static uint64_t F(block64_t X);
+		// раундовая функция
 		static block64_t round_F(block64_t X, uint64_t key);
 
+		// метод, который позволяет разбить входные данные на блоки
 		static std::vector<block64_t> split_data(std::vector<byte> data, bool append_service_block = true);
 
 #ifdef _DEBUG
@@ -38,35 +44,49 @@ namespace crypto {
 		size_t file_buf_sz = MAGENTA_BLOCK_SZ * 65536; //in bytes
 #endif // _DEBUG
 
+		// сырой ключ, до разбиения на раудовые ключи
 		std::vector<byte> raw_key;
+		// раундовые ключи
 		std::vector<uint64_t> prepared_key;
 
+
+		// общий алгоритм шифрования
 		block64_t crypt(block64_t data, std::vector<uint64_t>& keys);
 
+		// метод создания случайного вектора инициализации
 		block64_t generate_random_iv();
 
 	public:
+		// метод создания случайного ключа
 		static std::vector<byte> generate_random_key();
 
+		// конструкторы класса
 		explicit magenta();
 		explicit magenta(std::vector<byte>& key);
 
+		// методы работы с ключём
 		void set_key(std::vector<byte>& key);
 		std::vector<byte> get_key();
 
+		// методы для закгрузки и считывания ключа из файла
 		std::string save_key_as_file(std::string fname);
 		void load_key_from_file(std::string fname);
 
+		// методы работы с размером буфера
 		void set_file_buf_sz(size_t sz);
 		size_t get_file_buf_sz();
 
+		// методы шифрования
 		std::vector<byte> encrypt(std::vector<byte>* data);
 		std::vector<byte> encrypt(std::vector<byte> data);
+		// методы дешифрования
 		std::vector<byte> decrypt(std::vector<byte>* data);
 		std::vector<byte> decrypt(std::vector<byte> data);
 
+		// методы шифрования файла
 		std::string encrypt_file(std::string* fname);
 		std::string encrypt_file(std::string fname);
+		// методы дешифрования файла
 		std::string decrypt_file(std::string* fname);
 		std::string decrypt_file(std::string fname);
 		
